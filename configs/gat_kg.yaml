@@ -1,0 +1,72 @@
+# GAT + Knowledge Graph Enhanced Configuration
+model:
+  name: "GAT_KG"
+  encoder:
+    type: "gat"
+    num_layers: 3
+    hidden_dim: 128
+    num_heads: 4
+    dropout: 0.2
+    use_edge_features: true
+  kg_encoder:
+    enabled: true
+    kg_embedding_dim: 128
+    fusion_type: "concat"  # concat, attention, gated
+  predictor:
+    hidden_dim: 256
+    num_layers: 3
+    dropout: 0.3
+
+data:
+  dataset: "drugbank"
+  split_type: "random"
+  train_ratio: 0.7
+  valid_ratio: 0.1
+  test_ratio: 0.2
+  seed: 42
+  kg_data:
+    use_kg: true
+    kg_source: "hetionet"
+    kg_embedding_file: "data/processed/kg_embeddings.pt"
+
+training:
+  epochs: 150
+  batch_size: 32
+  learning_rate: 0.0005
+  weight_decay: 0.0001
+  scheduler:
+    type: "cosine_annealing"
+    T_max: 150
+    eta_min: 0.00001
+  early_stopping:
+    patience: 25
+    min_delta: 0.0005
+
+features:
+  atom_features:
+    - atomic_num
+    - degree
+    - formal_charge
+    - hybridization
+    - is_aromatic
+    - num_hs
+    - chiral_tag
+    - num_radical_electrons
+  bond_features:
+    - bond_type
+    - is_conjugated
+    - is_in_ring
+    - stereo
+
+interpretability:
+  attention_visualization: true
+  substructure_attention: true
+  uncertainty_estimation: true
+  mc_dropout_samples: 30
+
+logging:
+  wandb:
+    project: "ddi-gnn"
+    entity: null
+  save_dir: "outputs"
+  log_every: 10

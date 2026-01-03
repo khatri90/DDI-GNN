@@ -1,0 +1,84 @@
+# Best Model Configuration (GAT + KG + Substructure Attention)
+model:
+  name: "DDI_Best"
+  encoder:
+    type: "gat"
+    num_layers: 4
+    hidden_dim: 256
+    num_heads: 8
+    dropout: 0.3
+    use_edge_features: true
+    residual: true
+  kg_encoder:
+    enabled: true
+    kg_embedding_dim: 256
+    fusion_type: "gated"
+  substructure_attention:
+    enabled: true
+    hidden_dim: 128
+  predictor:
+    hidden_dim: 512
+    num_layers: 3
+    dropout: 0.4
+
+data:
+  dataset: "drugbank"
+  split_type: "random"
+  train_ratio: 0.7
+  valid_ratio: 0.1
+  test_ratio: 0.2
+  seed: 42
+  kg_data:
+    use_kg: true
+    kg_source: "hetionet"
+    kg_embedding_file: "data/processed/kg_embeddings.pt"
+
+training:
+  epochs: 200
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.00005
+  gradient_clip: 1.0
+  scheduler:
+    type: "cosine_annealing_warm_restarts"
+    T_0: 50
+    T_mult: 2
+    eta_min: 0.000001
+  early_stopping:
+    patience: 30
+    min_delta: 0.0001
+  label_smoothing: 0.1
+
+features:
+  atom_features:
+    - atomic_num
+    - degree
+    - formal_charge
+    - hybridization
+    - is_aromatic
+    - num_hs
+    - chiral_tag
+    - num_radical_electrons
+    - total_valence
+  bond_features:
+    - bond_type
+    - is_conjugated
+    - is_in_ring
+    - stereo
+    - bond_dir
+
+interpretability:
+  attention_visualization: true
+  substructure_attention: true
+  uncertainty_estimation: true
+  mc_dropout_samples: 50
+  shap_analysis: true
+
+logging:
+  wandb:
+    project: "ddi-gnn"
+    entity: null
+  save_dir: "outputs"
+  log_every: 5
+  save_best_model: true
+  save_last_model: true

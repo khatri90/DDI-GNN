@@ -1,0 +1,69 @@
+version: '3.8'
+
+services:
+  # FastAPI Server
+  api:
+    build: .
+    container_name: ddi-gnn-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+    environment:
+      - MODEL_PATH=/app/models/best_model.pt
+      - CONFIG_PATH=/app/configs/best_model.yaml
+      - CUDA_VISIBLE_DEVICES=0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: python -m uvicorn src.api.serve:app --host 0.0.0.0 --port 8000 --reload
+
+  # Streamlit Demo
+  demo:
+    build: .
+    container_name: ddi-gnn-demo
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - MODEL_PATH=/app/models/best_model.pt
+      - CONFIG_PATH=/app/configs/best_model.yaml
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: streamlit run src/api/streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+
+  # Training (run manually)
+  train:
+    build: .
+    container_name: ddi-gnn-train
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./outputs:/app/outputs
+      - ./configs:/app/configs
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - WANDB_API_KEY=${WANDB_API_KEY:-}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - training
+    command: python scripts/train.py --config configs/best_model.yaml
