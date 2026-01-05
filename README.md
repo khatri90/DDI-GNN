@@ -28,7 +28,7 @@ This project implements a robust system for predicting drug-drug interactions, a
 | Random Forest (Baseline) | ~85% | ~0.70 | ~0.82 | ~0.92 |
 | GCN | ~89% | ~0.78 | ~0.87 | ~0.95 |
 | GAT | ~91% | ~0.82 | ~0.89 | ~0.96 |
-| **GAT + Knowledge Graph** | **~93%** | **~0.85** | **~0.91** | **~0.97** |
+| **GAT + Knowledge Graph** | **87.8%** | **0.76** | **0.88** | **-** |
 
 *Results based on the DrugBank dataset using standard random split validation.*
 
