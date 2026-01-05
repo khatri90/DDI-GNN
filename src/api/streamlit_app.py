@@ -415,7 +415,7 @@ def main():
         if RDKIT_AVAILABLE and drug1_smiles:
             img_bytes = smiles_to_image(drug1_smiles)
             if img_bytes:
-                st.image(img_bytes, caption="Drug 1 Structure", width="stretch")
+                st.image(img_bytes, caption="Drug 1 Structure", width=150)
             else:
                 st.warning("Invalid SMILES for Drug 1")
 
@@ -444,7 +444,7 @@ def main():
         if RDKIT_AVAILABLE and drug2_smiles:
             img_bytes = smiles_to_image(drug2_smiles)
             if img_bytes:
-                st.image(img_bytes, caption="Drug 2 Structure", width="stretch")
+                st.image(img_bytes, caption="Drug 2 Structure", width=150)
             else:
                 st.warning("Invalid SMILES for Drug 2")
 
