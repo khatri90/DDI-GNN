@@ -92,23 +92,125 @@ st.markdown("""
 # Model Loading (Cached)
 # ============================================================================
 
+def find_latest_model():
+    """Find the most recent trained model in outputs directory."""
+    outputs_dir = Path("outputs")
+    if not outputs_dir.exists():
+        return None, None
+
+    # Find all experiment directories
+    exp_dirs = [d for d in outputs_dir.iterdir() if d.is_dir()]
+    if not exp_dirs:
+        return None, None
+
+    # Sort by modification time (most recent first)
+    exp_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+
+    # Look for best_model.pt in each directory
+    for exp_dir in exp_dirs:
+        model_path = exp_dir / "best_model.pt"
+        if model_path.exists():
+            # Try to find corresponding config
+            exp_name = exp_dir.name
+            # Extract config name from experiment name (e.g., GAT_KG -> gat_kg.yaml)
+            config_name = "_".join(exp_name.split("_")[:-2]).lower() + ".yaml"
+            config_path = Path("configs") / config_name
+            if not config_path.exists():
+                config_path = None
+            return str(model_path), str(config_path) if config_path else None
+
+    return None, None
+
+
+def get_model_cache_key():
+    """Generate cache key based on latest model file."""
+    outputs_dir = Path("outputs")
+    if outputs_dir.exists():
+        exp_dirs = [d for d in outputs_dir.iterdir() if d.is_dir()]
+        if exp_dirs:
+            exp_dirs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            for exp_dir in exp_dirs:
+                model_path = exp_dir / "best_model.pt"
+                if model_path.exists():
+                    return str(model_path.stat().st_mtime)
+    return "default"
+
+
 @st.cache_resource
-def load_ddi_model():
+def load_ddi_model(_cache_key=None):
     """Load the DDI prediction model."""
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    model_path = os.environ.get("MODEL_PATH", "models/best_model.pt")
-    config_path = os.environ.get("CONFIG_PATH", "configs/best_model.yaml")
+    # First check environment variables
+    model_path = os.environ.get("MODEL_PATH")
+    config_path = os.environ.get("CONFIG_PATH")
+
+    # If not set, try to find the latest model
+    if not model_path:
+        model_path, auto_config_path = find_latest_model()
+        if not config_path:
+            config_path = auto_config_path
 
     try:
-        if os.path.exists(model_path):
-            model = load_model(model_path, config_path, device=device)
+        if model_path and os.path.exists(model_path):
+            # Load checkpoint to get num_atom_features from saved state
+            checkpoint = torch.load(model_path, map_location=device, weights_only=False)
+
+            # Get state dict
+            state_dict = checkpoint.get('model_state_dict', checkpoint)
+
+            # Infer model architecture from checkpoint keys
+            num_atom_features = 169  # Default
+            hidden_dim = 128
+            num_layers = 3
+            num_heads = 4
+
+            # Look for encoder input_proj layer weight shape [hidden_dim, num_features]
+            for key, value in state_dict.items():
+                if 'input_proj.weight' in key and 'output' not in key:
+                    num_atom_features = value.shape[1]  # Shape is [hidden_dim, num_features]
+                    hidden_dim = value.shape[0]
+                    st.sidebar.info(f"Detected: {num_atom_features} atom features, {hidden_dim} hidden dim")
+                    break
+
+            # Count number of conv layers to get num_layers
+            conv_keys = [k for k in state_dict.keys() if 'convs.' in k and '.weight' in k]
+            if conv_keys:
+                layer_nums = set()
+                for k in conv_keys:
+                    parts = k.split('.')
+                    for i, p in enumerate(parts):
+                        if p == 'convs' and i + 1 < len(parts):
+                            try:
+                                layer_nums.add(int(parts[i + 1]))
+                            except ValueError:
+                                pass
+                if layer_nums:
+                    num_layers = max(layer_nums) + 1
+
+            # Create model with correct dimensions
+            model = DDIModel(
+                model_type='siamese',
+                num_atom_features=num_atom_features,
+                hidden_dim=hidden_dim,
+                num_classes=86,
+                encoder_type='gat',
+                num_layers=num_layers,
+                dropout=0.2,
+                num_heads=num_heads,
+            ).to(device)
+
+            # Load weights
+            model.load_state_dict(state_dict)
+
+            model.eval()
             st.sidebar.success(f"Model loaded from {model_path}")
+            return model, device
         else:
             # Use default model for demo
             model = DDIModel(
                 model_type='siamese',
-                num_atom_features=157,
+                num_atom_features=169,
                 hidden_dim=128,
                 num_classes=86,
                 encoder_type='gat',
@@ -241,8 +343,8 @@ def main():
     st.markdown('<div class="main-header">Drug-Drug Interaction Predictor</div>', unsafe_allow_html=True)
     st.markdown('<div class="sub-header">Powered by Graph Neural Networks</div>', unsafe_allow_html=True)
 
-    # Load model
-    model, device = load_ddi_model()
+    # Load model (with cache key to detect model changes)
+    model, device = load_ddi_model(_cache_key=get_model_cache_key())
     label_names = load_label_names()
     example_drugs = get_example_drugs()
 
@@ -292,7 +394,7 @@ def main():
         if RDKIT_AVAILABLE and drug1_smiles:
             img_bytes = smiles_to_image(drug1_smiles)
             if img_bytes:
-                st.image(img_bytes, caption="Drug 1 Structure", use_container_width=True)
+                st.image(img_bytes, caption="Drug 1 Structure", width="stretch")
             else:
                 st.warning("Invalid SMILES for Drug 1")
 
@@ -321,14 +423,14 @@ def main():
         if RDKIT_AVAILABLE and drug2_smiles:
             img_bytes = smiles_to_image(drug2_smiles)
             if img_bytes:
-                st.image(img_bytes, caption="Drug 2 Structure", use_container_width=True)
+                st.image(img_bytes, caption="Drug 2 Structure", width="stretch")
             else:
                 st.warning("Invalid SMILES for Drug 2")
 
     # Prediction button
     st.markdown("---")
 
-    if st.button("Predict Interaction", type="primary", use_container_width=True):
+    if st.button("Predict Interaction", type="primary", width="stretch"):
         if model is None:
             st.error("Model not loaded. Please check the model path.")
         elif not drug1_smiles or not drug2_smiles:
@@ -363,7 +465,7 @@ def main():
                 pred_df.columns = ['Class ID', 'Interaction Type', 'Probability']
                 pred_df['Probability'] = pred_df['Probability'].apply(lambda x: f"{x:.2%}")
 
-                st.dataframe(pred_df, use_container_width=True)
+                st.dataframe(pred_df, width="stretch")
 
                 # Visualization
                 st.markdown("### Probability Distribution")

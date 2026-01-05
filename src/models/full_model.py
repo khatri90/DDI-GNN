@@ -30,7 +30,7 @@ class DDIModel(nn.Module):
     def __init__(
         self,
         model_type: str = 'siamese',
-        num_atom_features: int = 157,
+        num_atom_features: int = 169,
         hidden_dim: int = 128,
         num_classes: int = 86,
         encoder_type: str = 'gat',
@@ -184,8 +184,8 @@ def create_model_from_config(config_path: str) -> DDIModel:
     use_uncertainty = interp_config.get('uncertainty_estimation', False)
 
     # Feature dimensions (calculated from featurizer)
-    # These are approximate - actual values depend on featurizer settings
-    num_atom_features = 157  # Default for full feature set
+    # This matches MoleculeFeaturizer.get_atom_feature_dim() with use_chirality=True
+    num_atom_features = 169  # Default for full feature set
 
     return DDIModel(
         model_type=model_type,
@@ -274,7 +274,7 @@ def create_model_from_config_dict(config: Dict[str, Any]) -> DDIModel:
 
     return DDIModel(
         model_type=model_type,
-        num_atom_features=157,
+        num_atom_features=169,
         hidden_dim=encoder_config.get('hidden_dim', 128),
         num_classes=86,
         encoder_type=encoder_config.get('type', 'gat'),

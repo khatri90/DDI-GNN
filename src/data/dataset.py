@@ -115,6 +115,10 @@ class DDIDataset(TorchDataset):
         if use_cache:
             self._build_cache()
 
+        # Convert labels to 0-indexed if needed (before getting label info)
+        if self.data_df['Y'].min() == 1:
+            self.data_df['Y'] = self.data_df['Y'] - 1
+
         # Get label information
         self.num_classes = self.data_df['Y'].nunique()
         self.label_names = self._get_label_names()
@@ -153,28 +157,61 @@ class DDIDataset(TorchDataset):
             self.root, 'processed',
             f'{self.data_source}_graphs.pkl'
         )
+        failed_file = os.path.join(
+            self.root, 'processed',
+            f'{self.data_source}_failed_smiles.pkl'
+        )
 
+        # Load existing cache if available
         if os.path.exists(cache_file):
             with open(cache_file, 'rb') as f:
                 self.graph_cache = pickle.load(f)
-            return
+        if os.path.exists(failed_file):
+            with open(failed_file, 'rb') as f:
+                failed_smiles = pickle.load(f)
+        else:
+            failed_smiles = set()
 
-        # Get unique SMILES
+        # Get unique SMILES from current dataset
         all_smiles = set(self.data_df['Drug1'].unique()) | set(self.data_df['Drug2'].unique())
 
-        print(f"Building graph cache for {len(all_smiles)} unique molecules...")
+        # Find SMILES not yet in cache or failed set
+        missing_smiles = all_smiles - set(self.graph_cache.keys()) - failed_smiles
 
-        from tqdm import tqdm
-        for smiles in tqdm(all_smiles, desc="Converting SMILES"):
-            graph = smiles_to_graph(smiles)
-            if graph is not None:
-                self.graph_cache[smiles] = graph
+        if missing_smiles:
+            print(f"Processing {len(missing_smiles)} new molecules for {self.split} split...")
 
-        # Save cache
-        with open(cache_file, 'wb') as f:
-            pickle.dump(self.graph_cache, f)
+            from tqdm import tqdm
+            for smiles in tqdm(missing_smiles, desc="Converting SMILES"):
+                graph = smiles_to_graph(smiles)
+                if graph is not None:
+                    self.graph_cache[smiles] = graph
+                else:
+                    failed_smiles.add(smiles)
 
-        print(f"Cache saved with {len(self.graph_cache)} graphs")
+            # Save updated cache and failed SMILES
+            with open(cache_file, 'wb') as f:
+                pickle.dump(self.graph_cache, f)
+            with open(failed_file, 'wb') as f:
+                pickle.dump(failed_smiles, f)
+
+            print(f"Cache updated: {len(self.graph_cache)} graphs, {len(failed_smiles)} failed")
+
+        # Filter out pairs with invalid SMILES
+        self._filter_invalid_pairs(failed_smiles)
+
+    def _filter_invalid_pairs(self, failed_smiles: set):
+        """Remove DDI pairs that contain invalid SMILES."""
+        if not failed_smiles:
+            return
+
+        original_len = len(self.data_df)
+        mask = ~(self.data_df['Drug1'].isin(failed_smiles) | self.data_df['Drug2'].isin(failed_smiles))
+        self.data_df = self.data_df[mask].reset_index(drop=True)
+        filtered_count = original_len - len(self.data_df)
+
+        if filtered_count > 0:
+            print(f"Filtered out {filtered_count} pairs with invalid SMILES ({len(self.data_df)} remaining)")
 
     def _get_label_names(self) -> Dict[int, str]:
         """Get mapping from label indices to names."""
@@ -198,27 +235,15 @@ class DDIDataset(TorchDataset):
         drug1_id = row.get('Drug1_ID', smiles1)
         drug2_id = row.get('Drug2_ID', smiles2)
 
-        # Get molecular graphs
-        if smiles1 in self.graph_cache:
-            drug1_graph = self.graph_cache[smiles1].clone()
-        else:
-            drug1_graph = smiles_to_graph(smiles1)
-            if drug1_graph is None:
-                # Return a dummy graph for invalid SMILES
-                drug1_graph = Data(
-                    x=torch.zeros((1, self.featurizer.get_atom_feature_dim())),
-                    edge_index=torch.zeros((2, 0), dtype=torch.long),
-                )
+        # Get molecular graphs from cache
+        # Invalid SMILES should have been filtered out during dataset loading
+        if smiles1 not in self.graph_cache:
+            raise KeyError(f"SMILES not in cache (should have been filtered): {smiles1[:50]}...")
+        if smiles2 not in self.graph_cache:
+            raise KeyError(f"SMILES not in cache (should have been filtered): {smiles2[:50]}...")
 
-        if smiles2 in self.graph_cache:
-            drug2_graph = self.graph_cache[smiles2].clone()
-        else:
-            drug2_graph = smiles_to_graph(smiles2)
-            if drug2_graph is None:
-                drug2_graph = Data(
-                    x=torch.zeros((1, self.featurizer.get_atom_feature_dim())),
-                    edge_index=torch.zeros((2, 0), dtype=torch.long),
-                )
+        drug1_graph = self.graph_cache[smiles1].clone()
+        drug2_graph = self.graph_cache[smiles2].clone()
 
         # Apply transforms
         if self.transform is not None:
@@ -330,14 +355,10 @@ def create_data_splits(
     else:
         raise ValueError(f"Custom data source requires pre-split files")
 
-    # Create datasets
+    # Create datasets - each loads/updates the shared cache file independently
     train_dataset = DDIDataset(data_source, split='train', root=root)
     valid_dataset = DDIDataset(data_source, split='valid', root=root)
     test_dataset = DDIDataset(data_source, split='test', root=root)
-
-    # Share the graph cache
-    valid_dataset.graph_cache = train_dataset.graph_cache
-    test_dataset.graph_cache = train_dataset.graph_cache
 
     return train_dataset, valid_dataset, test_dataset
 

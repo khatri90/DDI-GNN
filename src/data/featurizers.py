@@ -229,13 +229,19 @@ def smiles_to_graph(
     # Convert to tensors
     x = torch.tensor(atom_features, dtype=torch.float)
 
+    # Calculate bond feature dimension
+    bond_feat_dim = len(BOND_FEATURES['bond_type']) + 1  # +1 for unknown
+    bond_feat_dim += 2  # is_conjugated, is_in_ring
+    if use_stereo:
+        bond_feat_dim += len(BOND_FEATURES['stereo']) + 1  # +1 for unknown
+
     if edge_indices:
         edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
         edge_attr = torch.tensor(edge_features, dtype=torch.float)
     else:
         # Handle molecules with no bonds (single atoms)
         edge_index = torch.zeros((2, 0), dtype=torch.long)
-        edge_attr = torch.zeros((0, len(get_bond_features(None, use_stereo)) if mol.GetNumBonds() > 0 else 13), dtype=torch.float)
+        edge_attr = torch.zeros((0, bond_feat_dim), dtype=torch.float)
 
     # Create Data object
     data = Data(
