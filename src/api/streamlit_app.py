@@ -146,11 +146,21 @@ def load_ddi_model(_cache_key=None):
     model_path = os.environ.get("MODEL_PATH")
     config_path = os.environ.get("CONFIG_PATH")
 
-    # If not set, try to find the latest model
+    # If not set, try to find the production model first
     if not model_path:
-        model_path, auto_config_path = find_latest_model()
-        if not config_path:
-            config_path = auto_config_path
+        prod_model_path = Path("models/production_model.pt")
+        prod_config_path = Path("models/production_config.yaml")
+        
+        if prod_model_path.exists():
+            model_path = str(prod_model_path)
+            if not config_path and prod_config_path.exists():
+                config_path = str(prod_config_path)
+        
+        # Fallback to finding latest model in outputs
+        if not model_path:
+            model_path, auto_config_path = find_latest_model()
+            if not config_path:
+                config_path = auto_config_path
 
     try:
         if model_path and os.path.exists(model_path):
