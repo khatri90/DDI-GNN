@@ -495,7 +495,6 @@ def main():
     st.markdown("""
     <div style="text-align: center; color: #666; font-size: 0.9rem;">
         DDI-GNN: Drug-Drug Interaction Prediction using Graph Neural Networks<br>
-        Built for Master's Application Portfolio | 2026
     </div>
     """, unsafe_allow_html=True)
 
