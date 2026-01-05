@@ -19,3 +19,38 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Third-Party Licenses
+
+This project includes or depends on the following third-party software:
+
+### PyTorch
+BSD-3-Clause License
+https://github.com/pytorch/pytorch/blob/master/LICENSE
+
+### PyTorch Geometric
+MIT License
+https://github.com/pyg-team/pytorch_geometric/blob/master/LICENSE
+
+### RDKit
+BSD-3-Clause License
+https://github.com/rdkit/rdkit/blob/master/license.txt
+
+### Streamlit
+Apache License 2.0
+https://github.com/streamlit/streamlit/blob/develop/LICENSE
+
+### FastAPI
+MIT License
+https://github.com/tiangolo/fastapi/blob/master/LICENSE
+
+### DrugBank Dataset
+DrugBank data is licensed under a Creative Commons Attribution-NonCommercial 4.0
+International License. Users must cite DrugBank appropriately in any publications.
+https://go.drugbank.com/legal/terms_of_use
+
+### Therapeutics Data Commons (TDC)
+MIT License
+https://github.com/mims-harvard/TDC/blob/main/LICENSE
