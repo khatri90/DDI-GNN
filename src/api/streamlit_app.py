@@ -65,6 +65,7 @@ st.markdown("""
         padding: 1.5rem;
         border-radius: 10px;
         margin: 1rem 0;
+        color: #000000; /* Force black text for visibility on light background */
     }
     .confidence-high {
         color: #28a745;
@@ -226,11 +227,21 @@ def load_ddi_model(_cache_key=None):
 @st.cache_data
 def load_label_names():
     """Load interaction type names."""
-    label_path = "data/processed/label_names.json"
-    if os.path.exists(label_path):
+    # Try resolving relative to this file first
+    project_root = Path(__file__).parent.parent.parent
+    label_path = project_root / "data/processed/label_names.json"
+    
+    if label_path.exists():
         import json
-        with open(label_path, 'r') as f:
+        with open(label_path, 'r', encoding='utf-8') as f: # Specify encoding for safety
             return {int(k): v for k, v in json.load(f).items()}
+    
+    # Fallback to current directory
+    elif os.path.exists("data/processed/label_names.json"):
+        import json
+        with open("data/processed/label_names.json", 'r', encoding='utf-8') as f:
+            return {int(k): v for k, v in json.load(f).items()}
+            
     return {i: f"Interaction Type {i}" for i in range(86)}
 
 
@@ -471,11 +482,10 @@ def main():
                 st.markdown("### Probability Distribution")
 
                 chart_data = pd.DataFrame({
-                    'Interaction Type': [p['name'][:30] + '...' if len(p['name']) > 30 else p['name']
-                                        for p in result['top_predictions']],
+                    'Class ID': [f"Class {p['class']}" for p in result['top_predictions']],
                     'Probability': [p['probability'] for p in result['top_predictions']],
                 })
-                st.bar_chart(chart_data.set_index('Interaction Type'))
+                st.bar_chart(chart_data.set_index('Class ID'))
 
             else:
                 st.error("Could not make prediction. Please check the SMILES inputs.")
