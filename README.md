@@ -566,7 +566,7 @@ If you use this codebase in your research, please cite:
     title = {DDI-GNN: Drug-Drug Interaction Prediction using Graph Neural Networks},
     author = {Bazil, Ahmed},
     year = {2026},
-    url = {https://github.com/khatri90/DDI},
+    url = {https://github.com/khatri90/DDI-GNN},
     note = {A production-ready framework for DDI prediction using GNNs}
 }
 ```
